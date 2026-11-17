@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full select-none">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>極簡呼吸放鬆工具</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter & Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+TC:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #0f172a;
+            overscroll-behavior: none;
+        }
+
+        /* Breathing halo dynamic scales and glow transitions */
+        .breath-ring-outer {
+            transition: transform 0.1s linear, filter 0.5s ease;
+            will-change: transform, filter;
+        }
+
+        .breath-glow {
+            filter: drop-shadow(0 0 35px rgba(56, 189, 248, 0.45));
+        }
+
+        .breath-glow-hold {
+            filter: drop-shadow(0 0 40px rgba(168, 85, 247, 0.5));
+        }
+
+        .breath-glow-exhale {
+            filter: drop-shadow(0 0 30px rgba(244, 63, 94, 0.4));
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        /* Active touch feedback */
+        .touch-active:active {
+            transform: scale(0.94);
+            opacity: 0.85;
+        }
+    </style>
+</head>
+<body class="h-full w-full bg-slate-900 text-slate-100 flex flex-col justify-between items-center overflow-hidden pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
+
+    <!-- Top Bar / Header Stats -->
+    <header class="w-full max-w-md px-6 pt-6 flex justify-between items-center z-20">
+        <div class="flex items-center space-x-2">
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span class="text-xs font-medium tracking-wider text-slate-400 uppercase">Mindful Breathing</span>
+        </div>
+        
+        <div class="flex items-center space-x-3 text-xs text-slate-400">
+            <div id="stats-breaths" class="glass-panel px-3 py-1.5 rounded-full font-mono">
+                0 次呼吸
+            </div>
+            <button id="sound-toggle-btn" class="glass-btn p-2 rounded-full text-slate-300 touch-active" aria-label="切換音效">
+                <!-- Sound Icon -->
+                <svg id="sound-icon-on" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                <svg id="sound-icon-off" class="w-4 h-4 block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Visual Canvas (Central Breathing Ring) -->
+    <main class="relative w-full max-w-md flex-1 flex flex-col justify-center items-center px-6">
+        
+        <!-- Ambient Background Radial Glow -->
+        <div id="ambient-glow" class="absolute w-72 h-72 rounded-full bg-cyan-500/10 blur-3xl transition-all duration-1000 ease-out pointer-events-none"></div>
+
+        <!-- Breathing Circle Container -->
+        <div class="relative flex justify-center items-center w-72 h-72">
+            
+            <!-- Dynamic Expanding Rings (SVG) -->
+            <svg class="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 200 200">
+                <!-- Outer Background Track Ring -->
+                <circle cx="100" cy="100" r="82" class="stroke-slate-800" stroke-width="4" fill="none" />
+                
+                <!-- Progress Arc -->
+                <circle id="progress-ring" cx="100" cy="100" r="82" 
+                        class="stroke-cyan-400 transition-all duration-100 ease-linear" 
+                        stroke-width="4" 
+                        stroke-linecap="round" 
+                        fill="none" 
+                        stroke-dasharray="515.22" 
+                        stroke-dashoffset="515.22" />
+            </svg>
+
+            <!-- Scalable Inner Gradient Ring -->
+            <div id="breath-ring" class="breath-ring-outer breath-glow w-48 h-48 rounded-full flex justify-center items-center relative shadow-2xl transition-all duration-300"
+                 style="background: radial-gradient(circle, rgba(56,189,248,0.25) 0%, rgba(14,165,233,0.05) 70%, rgba(15,23,42,0) 100%); border: 2px solid rgba(56, 189, 248, 0.4);">
+                
+                <!-- Center Core Dot -->
+                <div id="breath-core" class="w-16 h-16 rounded-full bg-cyan-400/20 blur-sm absolute transition-all duration-1000"></div>
+
+                <!-- Interactive Text Overlay -->
+                <div class="z-10 text-center flex flex-col items-center justify-center pointer-events-none">
+                    <span id="breath-status" class="text-2xl font-light tracking-widest text-cyan-200 transition-all duration-500">
+                        準備放鬆
+                    </span>
+                    <span id="breath-timer" class="text-sm font-mono text-cyan-400/70 mt-1 opacity-0 transition-opacity duration-300">
+                        0s
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mode Indicator / Info -->
+        <div id="mode-badge" class="mt-8 text-xs font-medium text-slate-400 bg-slate-800/60 border border-slate-700/50 px-4 py-1.5 rounded-full tracking-wide transition-all">
+            模式：4秒吸氣 / 4秒呼氣
+        </div>
+    </main>
+
+    <!-- Bottom Controls & Selector -->
+    <footer class="w-full max-w-md px-6 pb-8 flex flex-col items-center space-y-5 z-20">
+        
+        <!-- Breathing Mode Selection Pills -->
+        <div class="glass-panel p-1.5 rounded-2xl flex w-full space-x-1">
+            <button data-mode="4-4" class="mode-btn flex-1 py-2 text-xs font-medium rounded-xl transition-all duration-200 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                4-4 基礎呼吸
+            </button>
+            <button data-mode="4-7-8" class="mode-btn flex-1 py-2 text-xs font-medium rounded-xl transition-all duration-200 text-slate-400 hover:text-slate-200">
+                4-7-8 助眠放鬆
+            </button>
+            <button data-mode="4-4-4-4" class="mode-btn flex-1 py-2 text-xs font-medium rounded-xl transition-all duration-200 text-slate-400 hover:text-slate-200">
+                4-4-4-4 方盒
+            </button>
+        </div>
+
+        <!-- Primary Action Button -->
+        <button id="toggle-btn" 
+                class="w-full py-4 rounded-2xl font-medium tracking-wider text-base bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 transition-all duration-200 touch-active flex justify-center items-center space-x-2">
+            <svg id="play-icon" class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="pause-icon" class="w-5 h-5 fill-current hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            <span id="btn-text">開始呼吸</span>
+        </button>
+
+    </footer>
+
+    <!-- Logic & Engine -->
+    <script>
+        // Preset Modes Configuration (Inhale, Hold1, Exhale, Hold2)
+        const MODES = {
+            '4-4': {
+                name: '4秒吸氣 / 4秒呼氣',
+                phases: [
+                    { name: '吸氣...', duration: 4, action: 'inhale' },
+                    { name: '呼氣...', duration: 4, action: 'exhale' }
+                ]
+            },
+            '4-7-8': {
+                name: '4秒吸氣 / 7秒屏息 / 8秒呼氣',
+                phases: [
+                    { name: '吸氣...', duration: 4, action: 'inhale' },
+                    { name: '屏息...', duration: 7, action: 'hold' },
+                    { name: '呼氣...', duration: 8, action: 'exhale' }
+                ]
+            },
+            '4-4-4-4': {
+                name: '4秒吸 / 4秒留 / 4秒呼 / 4秒停',
+                phases: [
+                    { name: '吸氣...', duration: 4, action: 'inhale' },
+                    { name: '屏息...', duration: 4, action: 'hold' },
+                    { name: '呼氣...', duration: 4, action: 'exhale' },
+                    { name: '停頓...', duration: 4, action: 'hold' }
+                ]
+            }
+        };
+
+        // State Machine
+        let currentModeKey = '4-4';
+        let isRunning = false;
+        let currentPhaseIndex = 0;
+        let phaseStartTime = 0;
+        let animationFrameId = null;
+        let completedBreaths = 0;
+        let isSoundEnabled = false;
+        let wakeLock = null;
+
+        // DOM Elements
+        const breathRing = document.getElementById('breath-ring');
+        const breathCore = document.getElementById('breath-core');
+        const breathStatus = document.getElementById('breath-status');
+        const breathTimer = document.getElementById('breath-timer');
+        const ambientGlow = document.getElementById('ambient-glow');
+        const progressRing = document.getElementById('progress-ring');
+        const toggleBtn = document.getElementById('toggle-btn');
+        const btnText = document.getElementById('btn-text');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const statsBreaths = document.getElementById('stats-breaths');
+        const modeBadge = document.getElementById('mode-badge');
+        const modeBtns = document.querySelectorAll('.mode-btn');
+        const soundToggleBtn = document.getElementById('sound-toggle-btn');
+        const soundIconOn = document.getElementById('sound-icon-on');
+        const soundIconOff = document.getElementById('sound-icon-off');
+
+        // SVG Ring Circumference (r=82 -> 2 * PI * 82 ≈ 515.22)
+        const RING_CIRCUMFERENCE = 515.22;
+
+        // Web Audio API Synth setup
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    audioCtx = new AudioContext();
+                }
+            }
+        }
+
+        function playSoftTone(freq = 220, duration = 0.8) {
+            if (!isSoundEnabled || !audioCtx) return;
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.warn('Audio play prevented:', e);
+            }
+        }
+
+        // Haptic Feedback Helper
+        function triggerHaptic() {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(40);
+            }
+        }
+
+        // Screen Wake Lock Handler
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                console.log('Wake lock failed:', err);
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock) {
+                wakeLock.release().then(() => { wakeLock = null; });
+            }
+        }
+
+        // Core Animation Loop
+        function updateAnimation(timestamp) {
+            if (!isRunning) return;
+
+            if (!phaseStartTime) phaseStartTime = timestamp;
+            const currentMode = MODES[currentModeKey];
+            const currentPhase = currentMode.phases[currentPhaseIndex];
+            const elapsed = (timestamp - phaseStartTime) / 1000; // in seconds
+            const progress = Math.min(elapsed / currentPhase.duration, 1);
+            
+            const remainingSec = Math.ceil(currentPhase.duration - elapsed);
+            breathTimer.textContent = `${Math.max(remainingSec, 1)}s`;
+
+            // Update Progress Arc
+            const strokeOffset = RING_CIRCUMFERENCE * (1 - progress);
+            progressRing.style.strokeDashoffset = strokeOffset;
+
+            // Interpolate scale and visuals based on action
+            let scale = 1;
+            if (currentPhase.action === 'inhale') {
+                // Scale from 1.0 -> 1.45
+                scale = 1 + (progress * 0.45);
+            } else if (currentPhase.action === 'exhale') {
+                // Scale from 1.45 -> 1.0
+                scale = 1.45 - (progress * 0.45);
+            } else if (currentPhase.action === 'hold') {
+                // Keep peak or low scale depending on previous phase
+                const prevPhase = currentMode.phases[(currentPhaseIndex - 1 + currentMode.phases.length) % currentMode.phases.length];
+                scale = (prevPhase && prevPhase.action === 'inhale') ? 1.45 : 1.0;
+                // Add tiny pulse effect while holding
+                scale += Math.sin(elapsed * 3) * 0.015;
+            }
+
+            breathRing.style.transform = `scale(${scale})`;
+
+            // Check Phase Completion
+            if (progress >= 1) {
+                // Advance to next phase
+                currentPhaseIndex = (currentPhaseIndex + 1) % currentMode.phases.length;
+                phaseStartTime = timestamp;
+
+                // Completed full cycle check
+                if (currentPhaseIndex === 0) {
+                    completedBreaths++;
+                    statsBreaths.textContent = `${completedBreaths} 次呼吸`;
+                }
+
+                applyPhaseVisuals(currentMode.phases[currentPhaseIndex]);
+            }
+
+            animationFrameId = requestAnimationFrame(updateAnimation);
+        }
+
+        // Apply Phase Styling & Themes
+        function applyPhaseVisuals(phase) {
+            breathStatus.textContent = phase.name;
+            triggerHaptic();
+
+            // Reset ring glows
+            breathRing.classList.remove('breath-glow', 'breath-glow-hold', 'breath-glow-exhale');
+
+            if (phase.action === 'inhale') {
+                breathRing.classList.add('breath-glow');
+                breathRing.style.borderColor = 'rgba(56, 189, 248, 0.6)';
+                breathRing.style.background = 'radial-gradient(circle, rgba(56,189,248,0.3) 0%, rgba(14,165,233,0.08) 70%, rgba(15,23,42,0) 100%)';
+                breathCore.className = 'w-20 h-20 rounded-full bg-cyan-400/30 blur-md absolute transition-all duration-1000';
+                breathStatus.className = 'text-2xl font-light tracking-widest text-cyan-200 transition-all duration-500';
+                ambientGlow.className = 'absolute w-80 h-80 rounded-full bg-cyan-500/20 blur-3xl transition-all duration-1000 ease-out pointer-events-none scale-125';
+                progressRing.className = 'stroke-cyan-400 transition-all duration-100 ease-linear';
+                playSoftTone(261.63, 1.2); // C4
+            } 
+            else if (phase.action === 'hold') {
+                breathRing.classList.add('breath-glow-hold');
+                breathRing.style.borderColor = 'rgba(168, 85, 247, 0.6)';
+                breathRing.style.background = 'radial-gradient(circle, rgba(168,85,247,0.3) 0%, rgba(147,51,234,0.08) 70%, rgba(15,23,42,0) 100%)';
+                breathCore.className = 'w-24 h-24 rounded-full bg-purple-400/30 blur-md absolute transition-all duration-1000';
+                breathStatus.className = 'text-2xl font-light tracking-widest text-purple-200 transition-all duration-500';
+                ambientGlow.className = 'absolute w-80 h-80 rounded-full bg-purple-500/20 blur-3xl transition-all duration-1000 ease-out pointer-events-none scale-110';
+                progressRing.className = 'stroke-purple-400 transition-all duration-100 ease-linear';
+                playSoftTone(329.63, 1.0); // E4
+            } 
+            else if (phase.action === 'exhale') {
+                breathRing.classList.add('breath-glow-exhale');
+                breathRing.style.borderColor = 'rgba(244, 63, 94, 0.5)';
+                breathRing.style.background = 'radial-gradient(circle, rgba(244,63,94,0.25) 0%, rgba(225,29,72,0.08) 70%, rgba(15,23,42,0) 100%)';
+                breathCore.className = 'w-12 h-12 rounded-full bg-rose-400/20 blur-sm absolute transition-all duration-1000';
+                breathStatus.className = 'text-2xl font-light tracking-widest text-rose-200 transition-all duration-500';
+                ambientGlow.className = 'absolute w-72 h-72 rounded-full bg-rose-500/15 blur-3xl transition-all duration-1000 ease-out pointer-events-none scale-90';
+                progressRing.className = 'stroke-rose-400 transition-all duration-100 ease-linear';
+                playSoftTone(196.00, 1.5); // G3
+            }
+        }
+
+        // Start Breathing Engine
+        function startBreathing() {
+            initAudio();
+            isRunning = true;
+            currentPhaseIndex = 0;
+            phaseStartTime = 0;
+
+            // Update UI State
+            btnText.textContent = '暫停';
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+            toggleBtn.className = 'w-full py-4 rounded-2xl font-medium tracking-wider text-base bg-slate-800 text-slate-200 border border-slate-700 shadow-lg transition-all duration-200 touch-active flex justify-center items-center space-x-2';
+            breathTimer.classList.remove('opacity-0');
+
+            requestWakeLock();
+            applyPhaseVisuals(MODES[currentModeKey].phases[0]);
+            animationFrameId = requestAnimationFrame(updateAnimation);
+        }
+
+        // Stop & Reset Engine
+        function stopBreathing() {
+            isRunning = false;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
+            releaseWakeLock();
+
+            // Reset UI state to initial
+            btnText.textContent = '開始呼吸';
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            toggleBtn.className = 'w-full py-4 rounded-2xl font-medium tracking-wider text-base bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 transition-all duration-200 touch-active flex justify-center items-center space-x-2';
+
+            breathStatus.textContent = '準備放鬆';
+            breathStatus.className = 'text-2xl font-light tracking-widest text-cyan-200 transition-all duration-500';
+            breathTimer.classList.add('opacity-0');
+
+            // Reset Ring Visuals
+            breathRing.style.transform = 'scale(1)';
+            breathRing.className = 'breath-ring-outer breath-glow w-48 h-48 rounded-full flex justify-center items-center relative shadow-2xl transition-all duration-500';
+            breathRing.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+            breathRing.style.background = 'radial-gradient(circle, rgba(56,189,248,0.25) 0%, rgba(14,165,233,0.05) 70%, rgba(15,23,42,0) 100%)';
+            
+            breathCore.className = 'w-16 h-16 rounded-full bg-cyan-400/20 blur-sm absolute transition-all duration-1000';
+            ambientGlow.className = 'absolute w-72 h-72 rounded-full bg-cyan-500/10 blur-3xl transition-all duration-1000 ease-out pointer-events-none scale-100';
+            
+            progressRing.style.strokeDashoffset = RING_CIRCUMFERENCE;
+            progressRing.className = 'stroke-cyan-400 transition-all duration-300 ease-out';
+        }
+
+        // Event Listeners
+        toggleBtn.addEventListener('click', () => {
+            if (isRunning) {
+                stopBreathing();
+            } else {
+                startBreathing();
+            }
+        });
+
+        // Mode Switching
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const selectedMode = e.currentTarget.getAttribute('data-mode');
+                if (selectedMode === currentModeKey) return;
+
+                currentModeKey = selectedMode;
+
+                // Active tab pill styles update
+                modeBtns.forEach(b => {
+                    b.className = 'mode-btn flex-1 py-2 text-xs font-medium rounded-xl transition-all duration-200 text-slate-400 hover:text-slate-200';
+                });
+                e.currentTarget.className = 'mode-btn flex-1 py-2 text-xs font-medium rounded-xl transition-all duration-200 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+
+                modeBadge.textContent = `模式：${MODES[currentModeKey].name}`;
+
+                // If currently running, reset engine with new mode
+                if (isRunning) {
+                    stopBreathing();
+                    startBreathing();
+                }
+            });
+        });
+
+        // Sound Toggle Button
+        soundToggleBtn.addEventListener('click', () => {
+            initAudio();
+            isSoundEnabled = !isSoundEnabled;
+            if (isSoundEnabled) {
+                soundIconOn.classList.remove('hidden');
+                soundIconOff.classList.add('hidden');
+                soundToggleBtn.classList.add('bg-cyan-500/20', 'text-cyan-300');
+                playSoftTone(440, 0.3);
+            } else {
+                soundIconOn.classList.add('hidden');
+                soundIconOff.classList.remove('hidden');
+                soundToggleBtn.classList.remove('bg-cyan-500/20', 'text-cyan-300');
+            }
+        });
+
+        // Handle page visibility change (pause on tab switch/app background)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && isRunning) {
+                stopBreathing();
+            }
+        });
+    </script>
+</body>
+</html>
